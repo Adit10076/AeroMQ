@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AeroMQ Control Center</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+    <style>
+        @keyframes pulse-green {
+            0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7); }
+            50% { opacity: 0.85; box-shadow: 0 0 0 8px rgba(34, 197, 94, 0); }
+        }
+        .pulse-online {
+            animation: pulse-green 2s ease-in-out infinite;
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-gray-100 min-h-screen">
+    <div class="max-w-7xl mx-auto px-6 py-8">
+        <!-- Header -->
+        <header class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-10">
+            <div>
+                <h1 class="text-3xl font-bold tracking-tight">
+                    <i class="fa-solid fa-bolt text-yellow-400 mr-2"></i>AeroMQ Control Center
+                </h1>
+                <p class="text-gray-400 mt-1 text-sm">Live broker metrics and dead-letter queue management</p>
+            </div>
+            <div class="flex items-center gap-2 bg-gray-800 border border-gray-700 rounded-full px-4 py-2">
+                <span class="w-3 h-3 rounded-full bg-green-500 pulse-online"></span>
+                <span class="text-sm font-medium text-green-400">System Online</span>
+            </div>
+        </header>
+
+        <!-- Metrics Grid -->
+        <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-10">
+            <div id="queue-card" class="bg-gray-800 border border-gray-700 rounded-xl p-5 transition-colors duration-300">
+                <div class="flex items-center justify-between mb-3">
+                    <span class="text-gray-400 text-sm font-medium">Events in Queue</span>
+                    <i class="fa-solid fa-layer-group text-blue-400"></i>
+                </div>
+                <p id="events-in-queue" class="text-3xl font-bold">—</p>
+            </div>
+
+            <div class="bg-gray-800 border border-gray-700 rounded-xl p-5">
+                <div class="flex items-center justify-between mb-3">
+                    <span class="text-gray-400 text-sm font-medium">Active Threads</span>
+                    <i class="fa-solid fa-microchip text-purple-400"></i>
+                </div>
+                <p id="active-threads" class="text-3xl font-bold">—</p>
+            </div>
+
+            <div class="bg-gray-800 border border-gray-700 rounded-xl p-5">
+                <div class="flex items-center justify-between mb-3">
+                    <span class="text-gray-400 text-sm font-medium">Total Processed</span>
+                    <i class="fa-solid fa-circle-check text-green-400"></i>
+                </div>
+                <p id="total-completed" class="text-3xl font-bold">—</p>
+            </div>
+
+            <div class="bg-red-950/40 border border-red-900/60 rounded-xl p-5">
+                <div class="flex items-center justify-between mb-3">
+                    <span class="text-red-300 text-sm font-medium">DLQ (Failed)</span>
+                    <i class="fa-solid fa-triangle-exclamation text-red-400"></i>
+                </div>
+                <p id="dlq-count" class="text-3xl font-bold text-red-200">—</p>
+            </div>
+        </section>
+
+        <!-- Publish Event -->
+        <section class="bg-gray-800 border border-gray-700 rounded-xl overflow-hidden mb-10">
+            <div class="px-6 py-4 border-b border-gray-700">
+                <h2 class="text-lg font-semibold">
+                    <i class="fa-solid fa-paper-plane text-yellow-400 mr-2"></i>Publish Event
+                </h2>
+                <p class="text-gray-400 text-sm mt-1">Dispatch a message to any topic without leaving the dashboard.</p>
+            </div>
+
+            <div class="p-6 space-y-6">
+                <form id="publish-form" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
+                    <div>
+                        <label for="publish-topic" class="block text-xs font-medium text-gray-400 mb-1.5 uppercase tracking-wide">Topic</label>
+                        <select id="publish-topic"
+                                class="w-full bg-gray-900 border border-gray-600 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-500/50">
+                            <option value="TRANSACTIONS">TRANSACTIONS</option>
+                            <option value="ORDERS">ORDERS</option>
+                            <option value="NOTIFICATIONS">NOTIFICATIONS</option>
+                            <option value="FAILURES">FAILURES</option>
+                        </select>
+                    </div>
+                    <div class="md:col-span-2">
+                        <label for="publish-message" class="block text-xs font-medium text-gray-400 mb-1.5 uppercase tracking-wide">Message</label>
+                        <input id="publish-message" type="text" required placeholder="e.g. payment-001"
+                               class="w-full bg-gray-900 border border-gray-600 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-500/50">
+                    </div>
+                    <div>
+                        <label for="publish-priority" class="block text-xs font-medium text-gray-400 mb-1.5 uppercase tracking-wide">Priority (1=highest)</label>
+                        <input id="publish-priority" type="number" min="1" max="5" value="3"
+                               class="w-full bg-gray-900 border border-gray-600 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-500/50">
+                    </div>
+                    <div class="md:col-span-2 lg:col-span-4 flex flex-wrap gap-3">
+                        <button type="submit"
+                                class="inline-flex items-center gap-2 bg-yellow-500 hover:bg-yellow-400 text-gray-900 font-semibold text-sm px-5 py-2.5 rounded-lg transition-colors">
+                            <i class="fa-solid fa-bolt"></i> Publish
+                        </button>
+                        <button type="button" onclick="runDemo('priority')"
+                                class="inline-flex items-center gap-2 bg-gray-700 hover:bg-gray-600 text-sm font-medium px-4 py-2.5 rounded-lg transition-colors">
+                            <i class="fa-solid fa-sort-amount-up"></i> Priority Demo
+                        </button>
+                        <button type="button" onclick="runDemo('burst')"
+                                class="inline-flex items-center gap-2 bg-gray-700 hover:bg-gray-600 text-sm font-medium px-4 py-2.5 rounded-lg transition-colors">
+                            <i class="fa-solid fa-layer-group"></i> Burst Demo
+                        </button>
+                        <button type="button" onclick="runDemo('dlq')"
+                                class="inline-flex items-center gap-2 bg-red-900/60 hover:bg-red-800/60 border border-red-800 text-sm font-medium px-4 py-2.5 rounded-lg transition-colors">
+                            <i class="fa-solid fa-bomb"></i> DLQ Demo
+                        </button>
+                    </div>
+                </form>
+
+                <div id="publish-status" class="hidden rounded-lg border px-4 py-3 text-sm"></div>
+
+                <div>
+                    <p class="text-xs font-medium text-gray-400 uppercase tracking-wide mb-2">Quick publish</p>
+                    <div class="flex flex-wrap gap-2">
+                        <button type="button" onclick="quickPublish('TRANSACTIONS', 'web-txn-' + Date.now(), 2)"
+                                class="text-xs bg-gray-900 hover:bg-gray-700 border border-gray-600 px-3 py-1.5 rounded-md transition-colors">TRANSACTIONS</button>
+                        <button type="button" onclick="quickPublish('ORDERS', 'web-order-' + Date.now(), 3)"
+                                class="text-xs bg-gray-900 hover:bg-gray-700 border border-gray-600 px-3 py-1.5 rounded-md transition-colors">ORDERS</button>
+                        <button type="button" onclick="quickPublish('NOTIFICATIONS', 'web-alert-' + Date.now(), 3)"
+                                class="text-xs bg-gray-900 hover:bg-gray-700 border border-gray-600 px-3 py-1.5 rounded-md transition-colors">NOTIFICATIONS</button>
+                        <button type="button" onclick="quickPublish('FAILURES', 'web-fail-' + Date.now(), 3)"
+                                class="text-xs bg-red-950/50 hover:bg-red-900/50 border border-red-800 px-3 py-1.5 rounded-md transition-colors">FAILURES</button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- DLQ Table -->
+        <section class="bg-gray-800 border border-gray-700 rounded-xl overflow-hidden">
+            <div class="flex items-center justify-between px-6 py-4 border-b border-gray-700">
+                <h2 class="text-lg font-semibold">
+                    <i class="fa-solid fa-skull-crossbones text-red-400 mr-2"></i>Dead Letter Queue
+                </h2>
+                <button id="refresh-dlq-btn"
+                        onclick="fetchDlq()"
+                        class="inline-flex items-center gap-2 bg-gray-700 hover:bg-gray-600 text-sm font-medium px-4 py-2 rounded-lg transition-colors">
+                    <i class="fa-solid fa-rotate-right"></i> Refresh
+                </button>
+            </div>
+
+            <div id="dlq-empty-state" class="hidden py-16 text-center">
+                <i class="fa-solid fa-heart-pulse text-green-400 text-4xl mb-4"></i>
+                <p class="text-xl font-semibold text-green-300">Queue is healthy</p>
+                <p class="text-gray-400 mt-2 text-sm">No failed events in the dead letter queue.</p>
+            </div>
+
+            <div id="dlq-table-wrapper" class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead class="bg-gray-900/60 text-gray-400 uppercase text-xs tracking-wider">
+                        <tr>
+                            <th class="text-left px-6 py-3 font-medium">Topic</th>
+                            <th class="text-left px-6 py-3 font-medium">Error Message</th>
+                            <th class="text-left px-6 py-3 font-medium">Failed At</th>
+                            <th class="text-left px-6 py-3 font-medium">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="dlq-table-body" class="divide-y divide-gray-700"></tbody>
+                </table>
+            </div>
+        </section>
+    </div>
+
+    <script>
+        const queueCard = document.getElementById('queue-card');
+        const eventsInQueueEl = document.getElementById('events-in-queue');
+        const activeThreadsEl = document.getElementById('active-threads');
+        const totalCompletedEl = document.getElementById('total-completed');
+        const dlqCountEl = document.getElementById('dlq-count');
+        const dlqTableBody = document.getElementById('dlq-table-body');
+        const dlqEmptyState = document.getElementById('dlq-empty-state');
+        const dlqTableWrapper = document.getElementById('dlq-table-wrapper');
+        const publishForm = document.getElementById('publish-form');
+        const publishStatus = document.getElementById('publish-status');
+
+        function showPublishStatus(message, isError) {
+            publishStatus.textContent = message;
+            publishStatus.classList.remove('hidden', 'border-green-700', 'bg-green-950/40', 'text-green-300',
+                'border-red-700', 'bg-red-950/40', 'text-red-300');
+            if (isError) {
+                publishStatus.classList.add('border-red-700', 'bg-red-950/40', 'text-red-300');
+            } else {
+                publishStatus.classList.add('border-green-700', 'bg-green-950/40', 'text-green-300');
+            }
+        }
+
+        async function publishEvent(topic, message, priority) {
+            const params = new URLSearchParams({ topic, message, priority: String(priority) });
+            const response = await fetch(`/api/aeromq/publish?${params}`);
+            const data = await response.json();
+            if (!response.ok) {
+                throw new Error(data.message || 'Publish failed');
+            }
+            return data;
+        }
+
+        async function quickPublish(topic, message, priority) {
+            try {
+                const data = await publishEvent(topic, message, priority);
+                showPublishStatus(`Dispatched to ${data.topic}: "${data.message}" (priority ${data.priority})`);
+                await fetchStats();
+            } catch (err) {
+                showPublishStatus(err.message, true);
+            }
+        }
+
+        publishForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const topic = document.getElementById('publish-topic').value;
+            const message = document.getElementById('publish-message').value.trim();
+            const priority = parseInt(document.getElementById('publish-priority').value, 10);
+
+            if (!message) {
+                showPublishStatus('Message is required.', true);
+                return;
+            }
+
+            try {
+                const data = await publishEvent(topic, message, priority);
+                showPublishStatus(`Dispatched to ${data.topic}: "${data.message}" (priority ${data.priority})`);
+                document.getElementById('publish-message').value = '';
+                await fetchStats();
+            } catch (err) {
+                showPublishStatus(err.message, true);
+            }
+        });
+
+        async function runDemo(scenario) {
+            try {
+                const response = await fetch(`/api/sample/demo/${scenario}`);
+                const data = await response.json();
+                if (!response.ok) {
+                    throw new Error('Demo failed');
+                }
+                showPublishStatus(data.description || `${scenario} demo started`);
+                await fetchStats();
+                if (scenario === 'dlq') {
+                    setTimeout(fetchDlq, 8000);
+                }
+            } catch (err) {
+                showPublishStatus(`Demo failed: ${err.message}`, true);
+            }
+        }
+
+        async function fetchStats() {
+            try {
+                const response = await fetch('/api/aeromq/dashboard/stats');
+                if (!response.ok) return;
+
+                const data = await response.json();
+
+                eventsInQueueEl.textContent = data.eventsInQueue ?? 0;
+                activeThreadsEl.textContent = `${data.activeThreads ?? 0} / ${data.poolSize ?? 0}`;
+                totalCompletedEl.textContent = data.totalCompleted ?? 0;
+                dlqCountEl.textContent = data.dlqCount ?? 0;
+
+                if ((data.eventsInQueue ?? 0) > 100) {
+                    queueCard.classList.add('border-yellow-500', 'ring-1', 'ring-yellow-500/50');
+                    queueCard.classList.remove('border-gray-700');
+                } else {
+                    queueCard.classList.remove('border-yellow-500', 'ring-1', 'ring-yellow-500/50');
+                    queueCard.classList.add('border-gray-700');
+                }
+            } catch (err) {
+                console.error('Failed to fetch stats:', err);
+            }
+        }
+
+        async function fetchDlq() {
+            try {
+                const response = await fetch('/api/aeromq/dashboard/dlq-recent');
+                if (!response.ok) return;
+
+                const events = await response.json();
+                dlqTableBody.innerHTML = '';
+
+                if (!events.length) {
+                    dlqEmptyState.classList.remove('hidden');
+                    dlqTableWrapper.classList.add('hidden');
+                    return;
+                }
+
+                dlqEmptyState.classList.add('hidden');
+                dlqTableWrapper.classList.remove('hidden');
+
+                events.forEach(event => {
+                    const row = document.createElement('tr');
+                    row.className = 'hover:bg-gray-700/40 transition-colors';
+
+                    const failedAt = event.failedAt
+                        ? new Date(event.failedAt).toLocaleString()
+                        : '—';
+
+                    row.innerHTML = `
+                        <td class="px-6 py-4 font-medium text-blue-300">${escapeHtml(event.topic ?? '')}</td>
+                        <td class="px-6 py-4 text-gray-300 max-w-md truncate" title="${escapeHtml(event.errorMessage ?? '')}">
+                            ${escapeHtml(event.errorMessage ?? '')}
+                        </td>
+                        <td class="px-6 py-4 text-gray-400 whitespace-nowrap">${failedAt}</td>
+                        <td class="px-6 py-4">
+                            <button onclick="replayEvent(${event.id})"
+                                    class="inline-flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium px-3 py-1.5 rounded-md transition-colors">
+                                <i class="fa-solid fa-rotate-left"></i> Replay
+                            </button>
+                        </td>
+                    `;
+
+                    dlqTableBody.appendChild(row);
+                });
+            } catch (err) {
+                console.error('Failed to fetch DLQ:', err);
+            }
+        }
+
+        async function replayEvent(eventId) {
+            const confirmed = confirm(`Replay DLQ event #${eventId}?`);
+            if (!confirmed) return;
+
+            try {
+                const response = await fetch(`/api/aeromq/replay/${eventId}`, { method: 'POST' });
+                if (!response.ok) {
+                    alert('Replay failed. The event may no longer exist.');
+                    return;
+                }
+
+                await fetchDlq();
+                await fetchStats();
+            } catch (err) {
+                console.error('Replay failed:', err);
+                alert('Replay failed due to a network error.');
+            }
+        }
+
+        function escapeHtml(value) {
+            return String(value)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        fetchStats();
+        fetchDlq();
+        setInterval(fetchStats, 1000);
+        setInterval(fetchDlq, 5000);
+    </script>
+</body>
+</html>
